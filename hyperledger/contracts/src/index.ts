@@ -6,4 +6,10 @@ import { eVaultContract } from './eVault';
 
 export { eVaultContract } from './eVault';
 
-export const contracts: any[] = [eVaultContract];
+import { caseContract } from './forum';
+
+export { caseContract } from './forum';
+
+export const casecontracts: any[] = [eVaultContract];
+
+export const eVaultcontracts: any[] = [eVaultContract];
