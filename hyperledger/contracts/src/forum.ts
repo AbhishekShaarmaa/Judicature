@@ -11,8 +11,7 @@ import {
     Transaction,
 } from 'fabric-contract-api';
 import { Document } from './types/document';
-import { Case } from './types/case.d';
-
+import { Case, CaseType, ClientType, Client } from './types/case.d';
 
 @Info({
     title: 'forum',
@@ -39,7 +38,7 @@ export class caseContract extends Contract {
             caseId,
             lawyers,
         }: {
-            caseId?: number;
+            caseId: number;
             lawyers?: string;
         }
     ): Promise<Case[]> {
@@ -66,63 +65,106 @@ export class caseContract extends Contract {
         return await this.GetAllResults(queryResults);
     }
 
-    // Function to create case document
-    public async CreateCaseDoc(
+    //create case id function
+
+    @Transaction()
+    public async CreateCase(
         { stub }: { stub: ChaincodeStub },
-        key: string,
-        cid: string,
-        owner: string,
-        extention: string,
-        fileName: string
+        caseId: string,
+        caseType: CaseType,
+        clientType: ClientType,
+        username: string,
+        org: string,
+        lawyer: string
     ): Promise<void> {
-        return await this.eVault.CreateDoc(
-            { stub },
-            key,
-            cid,
-            owner,
-            extention,
-            fileName
-        );
+        const caseKey = `CASE_${caseId}`;
+
+        const clientData: Client = { username, org, lawyer };
+
+        const clientObj =
+            clientType === ClientType.PETITIONER
+                ? {
+                      petitioner: clientData,
+                      respondent: { username: '', org: '', lawyer: '' },
+                  }
+                : {
+                      respondent: clientData,
+                      petitioner: { username: '', org: '', lawyer: '' },
+                  };
+
+        const newCase: Case = {
+            caseId,
+            caseType,
+            judge: '', // Consider providing a way to set this
+            docs: [], // Assuming no documents are added during case creation
+            client: clientObj,
+        };
+        stub.putState(caseKey, Buffer.from(JSON.stringify(newCase)));
     }
 
-    // Function to update case document
-    public async UpdateCaseDoc(
+    // update case function
+
+    @Transaction()
+    public async UpdateCase(
         { stub }: { stub: ChaincodeStub },
-        key: string,
+        caseId: string,
         {
-            cid,
-            owner,
-            extention,
-            fileName,
+            caseType,
+            judge,
+            clientType,
+            username,
+            org,
+            lawyer,
         }: {
-            cid?: string;
-            owner?: string;
-            extention?: string;
-            fileName?: string;
+            caseType?: CaseType;
+            judge?: string;
+            clientType?: ClientType;
+            username?: string;
+            org?: string;
+            lawyer?: string;
         }
     ): Promise<void> {
-        return await this.eVault.UpdateDoc({ stub }, key, {
-            cid,
-            owner,
-            extention,
-            fileName,
-        });
+        const caseKey = `CASE_${caseId}`;
+        const caseDataBuffer = await stub.getState(caseKey);
+        if (!caseDataBuffer || caseDataBuffer.length === 0) {
+            throw new Error(`Case with ID: ${caseId} does not exist.`);
+        }
+
+        const existingCase: Case = JSON.parse(caseDataBuffer.toString());
+
+        existingCase.caseType = caseType || existingCase.caseType;
+        existingCase.judge = judge || existingCase.judge;
+
+        if (clientType && (username || org || lawyer)) {
+            const clientData: Client = {
+                username: username || '',
+                org: org || '',
+                lawyer: lawyer || '',
+            };
+            if (clientType === ClientType.PETITIONER) {
+                existingCase.client.petitioner = clientData;
+            } else {
+                existingCase.client.respondent = clientData;
+            }
+        }
+
+        await stub.putState(caseKey, Buffer.from(JSON.stringify(existingCase)));
     }
 
-    // Function to get a specific case document
-    public async GetCaseDoc(
+    // delete case
+    @Transaction()
+    public async DeleteCase(
         { stub }: { stub: ChaincodeStub },
-        key: string
-    ): Promise<Document | null> {
-        return await this.eVault.GetDoc({ stub }, key);
-    }
-
-    // Function to delete a specific case document
-    public async DeleteCaseDoc(
-        { stub }: { stub: ChaincodeStub },
-        key: string
+        caseId: string
     ): Promise<void> {
-        return await this.eVault.DeleteDoc({ stub }, key);
+        const caseKey = `CASE_${caseId}`;
+        const caseDataBuffer = await stub.getState(caseKey);
+
+        if (!caseDataBuffer || caseDataBuffer.length === 0) {
+            throw new Error(`Case with ID: ${caseId} does not exist.`);
+        }
+
+        await stub.deleteState(caseKey);
     }
 
     @Transaction(false)

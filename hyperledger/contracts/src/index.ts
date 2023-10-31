@@ -10,6 +10,4 @@ import { caseContract } from './forum';
 
 export { caseContract } from './forum';
 
-export const casecontracts: any[] = [eVaultContract];
-
-export const eVaultcontracts: any[] = [eVaultContract];
+export const contracts: any[] = [caseContract];
