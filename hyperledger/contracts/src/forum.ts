@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  */
-import { eVaultContract } from './eVault';
+
 import { ChaincodeStub } from 'fabric-shim';
 import {
     Context,
@@ -10,19 +10,18 @@ import {
     Returns,
     Transaction,
 } from 'fabric-contract-api';
-import { Document } from './types/document';
-import { Case, CaseType, ClientType, Client } from './types/case.d';
+
+import { Case, CaseType, ClientType, Client, Document } from './types/case.d';
+import { promises } from 'dns';
+import { stringify } from 'querystring';
 
 @Info({
     title: 'forum',
     description: 'Smart contract for case document management',
 })
 export class caseContract extends Contract {
-    private eVault: eVaultContract;
-
     constructor() {
         super('Case');
-        this.eVault = new eVaultContract();
     }
 
     @Transaction(false)
@@ -72,84 +71,70 @@ export class caseContract extends Contract {
         { stub }: { stub: ChaincodeStub },
         caseId: string,
         caseType: CaseType,
-        clientType: ClientType,
-        username: string,
-        org: string,
-        lawyer: string
+        petitioner: string,
+        respondent: string
     ): Promise<void> {
         const caseKey = `CASE_${caseId}`;
-
-        const clientData: Client = { username, org, lawyer };
-
-        const clientObj =
-            clientType === ClientType.PETITIONER
-                ? {
-                      petitioner: clientData,
-                      respondent: { username: '', org: '', lawyer: '' },
-                  }
-                : {
-                      respondent: clientData,
-                      petitioner: { username: '', org: '', lawyer: '' },
-                  };
 
         const newCase: Case = {
             caseId,
             caseType,
-            judge: '', // Consider providing a way to set this
-            docs: [], // Assuming no documents are added during case creation
-            client: clientObj,
+            judge: '',
+            docs: [],
+            petitioner,
+            respondent,
         };
         stub.putState(caseKey, Buffer.from(JSON.stringify(newCase)));
     }
 
     // update case function
 
-    @Transaction()
-    public async UpdateCase(
-        { stub }: { stub: ChaincodeStub },
-        caseId: string,
-        {
-            caseType,
-            judge,
-            clientType,
-            username,
-            org,
-            lawyer,
-        }: {
-            caseType?: CaseType;
-            judge?: string;
-            clientType?: ClientType;
-            username?: string;
-            org?: string;
-            lawyer?: string;
-        }
-    ): Promise<void> {
-        const caseKey = `CASE_${caseId}`;
-        const caseDataBuffer = await stub.getState(caseKey);
-        if (!caseDataBuffer || caseDataBuffer.length === 0) {
-            throw new Error(`Case with ID: ${caseId} does not exist.`);
-        }
+    // @Transaction()
+    // public async UpdateCase(
+    //     { stub }: { stub: ChaincodeStub },
+    //     caseId: string,
+    //     {
+    //         caseType,
+    //         judge,
+    //         clientType,
+    //         username,
+    //         org,
+    //         lawyer,
+    //     }: {
+    //         caseType?: CaseType;
+    //         judge?: string;
+    //         clientType?: ClientType;
+    //         username?: string;
+    //         org?: string;
+    //         lawyer?: string;
+    //     }
+    // ): Promise<void> {
+    //     const caseKey = `CASE_${caseId}`;
+    //     const caseDataBuffer = await stub.getState(caseKey);
+    //     if (!caseDataBuffer || caseDataBuffer.length === 0) {
+    //         throw new Error(`Case with ID: ${caseId} does not exist.`);
+    //     }
 
-        const existingCase: Case = JSON.parse(caseDataBuffer.toString());
+    //     const existingCase: Case = JSON.parse(caseDataBuffer.toString());
 
-        existingCase.caseType = caseType || existingCase.caseType;
-        existingCase.judge = judge || existingCase.judge;
+    //     existingCase.caseType = caseType || existingCase.caseType;
+    //     existingCase.judge = judge || existingCase.judge;
 
-        if (clientType && (username || org || lawyer)) {
-            const clientData: Client = {
-                username: username || '',
-                org: org || '',
-                lawyer: lawyer || '',
-            };
-            if (clientType === ClientType.PETITIONER) {
-                existingCase.client.petitioner = clientData;
-            } else {
-                existingCase.client.respondent = clientData;
-            }
-        }
+    //     if (clientType && (username || org || lawyer)) {
+    //         const clientData: Client = {
+    //             username: username || '',
+    //             org: org || '',
+    //             lawyer: lawyer || '',
+    //         };
+    //         if (clientType === ClientType.PETITIONER) {
+    //             existingCase.client.petitioner = clientData;
+    //         } else {
+    //             existingCase.client.respondent = clientData;
+    //         }
+    //     }
 
-        await stub.putState(caseKey, Buffer.from(JSON.stringify(existingCase)));
-    }
+    //     await stub.putState(caseKey, Buffer.from(JSON.stringify(existingCase)));
+    // }
 
     // delete case
     @Transaction()
@@ -165,6 +150,56 @@ export class caseContract extends Contract {
         }
 
         await stub.deleteState(caseKey);
+    }
+
+    //    function to add lawyer
+
+    @Transaction()
+    public async AddLawyer(
+        { stub }: { stub: ChaincodeStub },
+        caseId: string,
+        username: string,
+        lawyer: string,
+        org: string,
+        caseType: CaseType
+    ): Promise<void> {
+        const caseKey = `CASE_${caseId}`;
+
+        const addLawyer: Client = {
+            username,
+            lawyer,
+            org,
+            caseType,
+        };
+
+        stub.putState(caseKey, Buffer.from(JSON.stringify(addLawyer)));
+    }
+    // function to get document
+
+    @Transaction(false)
+    public async GetDoc(
+        { stub }: { stub: ChaincodeStub },
+        key: string
+    ): Promise<Document | null> {
+        const dataBuffer = await stub.getState(key);
+        if (dataBuffer && dataBuffer.length > 0)
+            return JSON.parse(dataBuffer.toString()) as Document;
+
+        return null;
+    }
+
+    // function to add document
+    @Transaction()
+    public async AddDoc(
+        { stub }: { stub: ChaincodeStub },
+        caseKey: string,
+        doc: Document
+    ): Promise<void> {
+        const caseObj: Case = JSON.parse(
+            (await stub.getState(caseKey)).toString()
+        );
+        caseObj.docs.push(doc);
+        stub.putState(caseKey, Buffer.from(stringify(caseObj)));
     }
 
     @Transaction(false)

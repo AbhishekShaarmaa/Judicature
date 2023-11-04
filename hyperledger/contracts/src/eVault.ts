@@ -82,7 +82,7 @@ export class eVaultContract extends Contract {
 
         return null;
     }
-
+    
     @Transaction()
     public async UpdateDoc(
         { stub }: { stub: ChaincodeStub },

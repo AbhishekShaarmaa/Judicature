@@ -13,7 +13,10 @@ export class Client {
     public org: string;
 
     @Property()
-    public lawyer: string;
+    public caseType: CaseType;
+
+    @Property()
+    public lawyer?: string;
 }
 
 @Object()
@@ -31,7 +34,7 @@ export enum CaseType {
     directTaxes = 'DIRECT_TAXES',
     indirectTaxes = 'INDIRECT TAXES',
     landAcquisitionAndRequisition = 'LAND_ACQUISITION_REQUISITION',
-    service = '	SERVICE',
+    service = 'SERVICE',
     academic = 'ACADEMIC',
     letterPetitionAndPIL = 'LETTER_PETITION_PIL',
     election = 'ELECTION',
@@ -44,7 +47,7 @@ export enum ClientType {
     PETITIONER = 'petitioner',
 }
 
-// client[clientType].username = 
+// client[clientType].username =
 
 @Object()
 export class Case {
@@ -61,5 +64,8 @@ export class Case {
     public docs: Document[];
 
     @Property()
-    public client: { petitioner: Client; respondent: Client };
+    public petitioner: string;
+
+    @Property()
+    public respondent: string;
 }
